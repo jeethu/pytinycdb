@@ -4,7 +4,7 @@ A very simple interface to the tinycdb DBM.
 By Jeethu Rao <jeethu@jeethurao.com>
 '''
 cimport python_string as PS
-cimport stdlib
+cimport python_mem as PM
 
 cdef extern from "fcntl.h" :
     int open( char* path, int flag, int mode )
@@ -123,16 +123,16 @@ cdef class read(tinycdb):
             raise CDBError("Unknown Error")
         if rez == 0 :
             raise KeyError("Key \'%s\' not found"%key)
-        buffer = <char *>stdlib.malloc(dlen)
+        buffer = <char *>PM.PyMem_Malloc(dlen)
         if buffer == NULL :
             raise MemoryError("malloc() failed")
         rez = cdb_bread( self.fd, buffer, dlen )
         if rez == 0 :
             ret = PS.PyString_FromStringAndSize( buffer, dlen )
-            stdlib.free(buffer)
+            PM.PyMem_Free(buffer)
             return ret
         raise CDBError("Unknown Error")
-        stdlib.free(buffer)
+        PM.PyMem_Free(buffer)
 
     def __dealloc__( self ) :
         self.close()
