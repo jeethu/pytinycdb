@@ -3,14 +3,8 @@ A very simple interface to the tinycdb DBM.
 
 By Jeethu Rao <jeethu@jeethurao.com>
 '''
-
-cdef extern from "Python.h":
-    int PyString_AsStringAndSize(object obj, char **buffer, Py_ssize_t* length) except -1
-    object PyString_FromStringAndSize(char *v, int len)
-
-cdef extern from "stdlib.h" :
-    void *malloc(size_t size)
-    void *free(void *ptr)
+cimport python_string as PS
+cimport stdlib
 
 cdef extern from "fcntl.h" :
     int open( char* path, int flag, int mode )
@@ -36,7 +30,7 @@ cdef int openFile( object file_name, int rw ) except -1 :
     cdef char *buffer
     cdef Py_ssize_t len
     cdef int rez
-    rez = PyString_AsStringAndSize(file_name, &buffer, &len)
+    rez = PS.PyString_AsStringAndSize(file_name, &buffer, &len)
     if rw :
         rez = open( buffer, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR )
     else :
@@ -48,10 +42,41 @@ cdef int openFile( object file_name, int rw ) except -1 :
 class CDBError( Exception ) :
     pass
 
-cdef class create :
-    cdef int fd, finished
+cdef class tinycdb:
+    cdef int fd
+    cdef public char mode
+    cdef public fname
     cdef cdb_make cdbm
+    def __contains__( self, key ) :
+        cdef char *buffer
+        cdef Py_ssize_t len
+        cdef int rez
+        cdef unsigned int dlen
+        rez = PS.PyString_AsStringAndSize(key, &buffer, &len)
+        if self.mode == c'w':
+            rez = cdb_make_exists(&self.cdbm, buffer, len)
+        else:
+            rez = cdb_seek( self.fd, buffer, len, &dlen )
+        if rez < 0 :
+            raise CDBError("Unknown Error")
+        return rez
+
+    def __repr__(self):
+        return "TinyCDB('%s', '%s')" % (self.fname, chr(self.mode))
+
+    def close(self):
+        if self.fd: close( self.fd )
+
+def TinyCDB(fname, mode="r"):
+    if mode == "r":
+        return read(fname)
+    return create(fname)
+
+cdef class create(tinycdb):
+    cdef int finished
     def __init__( self, fname ) :
+        self.mode = 'w'
+        self.fname = fname
         cdef int rez
         self.fd = openFile( fname, 1 )
         rez = cdb_make_start( &self.cdbm, self.fd )
@@ -62,25 +87,12 @@ cdef class create :
         cdef char *buffer1, *buffer2
         cdef Py_ssize_t len1, len2
         cdef int rez
-        rez = PyString_AsStringAndSize(key, &buffer1, &len1)
-        rez = PyString_AsStringAndSize(value, &buffer2, &len2)
+        rez = PS.PyString_AsStringAndSize(key, &buffer1, &len1)
+        rez = PS.PyString_AsStringAndSize(value, &buffer2, &len2)
         rez = cdb_make_add( &self.cdbm, buffer1, len1, buffer2, len2 )
         if rez != 0 :
             raise CDBError("Unknown Error")
     
-    def __contains__( self, key ) :
-        cdef char *buffer
-        cdef Py_ssize_t len
-        cdef int rez
-        rez = PyString_AsStringAndSize(key, &buffer, &len)
-        rez = cdb_make_exists(&self.cdbm, buffer, len)
-        if rez < 0 :
-            raise CDBError("Unknown Error")
-        if rez == 1 :
-            return True
-        return False
-
-
     def close( self ) :
         if not self.finished :
             self.finished = 1
@@ -88,25 +100,16 @@ cdef class create :
 
     def __dealloc__( self ) :
         if not self.finished :
+            self.finished = 1
             cdb_make_finish(&self.cdbm)
         if self.fd :
             close( self.fd )
 
-cdef class read :
-    cdef int fd
+cdef class read(tinycdb):
     def __init__( self, fname ) :
         self.fd = openFile( fname, 0 )
-
-    def __contains__( self, key ) :
-        cdef char *buffer
-        cdef Py_ssize_t len
-        cdef int rez
-        cdef unsigned int dlen
-        rez = PyString_AsStringAndSize(key, &buffer, &len)
-        rez = cdb_seek( self.fd, buffer, len, &dlen )
-        if rez < 0 :
-            raise CDBError("Unknown Error")
-        return rez
+        self.mode = 'r'
+        self.fname = fname
 
     def __getitem__( self, key ) :
         cdef char *buffer
@@ -114,23 +117,22 @@ cdef class read :
         cdef int rez
         cdef unsigned int dlen
         cdef object ret
-        rez = PyString_AsStringAndSize(key, &buffer, &len)
+        rez = PS.PyString_AsStringAndSize(key, &buffer, &len)
         rez = cdb_seek( self.fd, buffer, len, &dlen )
         if rez < 0 :
             raise CDBError("Unknown Error")
         if rez == 0 :
             raise KeyError("Key \'%s\' not found"%key)
-        buffer = <char *>malloc(dlen)
+        buffer = <char *>stdlib.malloc(dlen)
         if buffer == NULL :
             raise MemoryError("malloc() failed")
         rez = cdb_bread( self.fd, buffer, dlen )
         if rez == 0 :
-            ret = PyString_FromStringAndSize( buffer, dlen )
-            free(buffer)
+            ret = PS.PyString_FromStringAndSize( buffer, dlen )
+            stdlib.free(buffer)
             return ret
         raise CDBError("Unknown Error")
-        free(buffer)
+        stdlib.free(buffer)
 
     def __dealloc__( self ) :
-        if self.fd :
-            close( self.fd )
+        self.close()
