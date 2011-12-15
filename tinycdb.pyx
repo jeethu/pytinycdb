@@ -60,6 +60,9 @@ cdef class tinycdb:
             raise CDBError("Unknown Error")
         return rez
 
+    def has_key(self, key):
+        return self.__contains__(key)
+
     def __repr__(self):
         return "TinyCDB('%s', '%s')" % (self.fname, chr(self.mode))
 
