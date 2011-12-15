@@ -1,9 +1,7 @@
 #! /usr/bin/env python
-
 import os
 from distutils.core import setup
 from distutils.extension import Extension
-from Cython.Distutils import build_ext
 
 TINYCDB_DIR = 'src'
 TINYCDB_FILE_NAMES = ['cdb_init.c', 'cdb_find.c', 'cdb_findnext.c', 'cdb_seq.c', 'cdb_seek.c', 'cdb_unpack.c',
@@ -16,12 +14,11 @@ setup(
     description="A Python wrapper for TinyCDB",
     author='Jeethu Rao',
     author_email='jeethu@jeethurao.com',
-    cmdclass = {'build_ext': build_ext},
 
     ext_modules = [
         Extension(
             "tinycdb",
-            ["tinycdb.pyx"] + TINYCDB_FILES,
+            ["generated/tinycdb.c"] + TINYCDB_FILES,
             include_dirs=[TINYCDB_DIR],
         )
     ]
