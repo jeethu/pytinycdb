@@ -12,6 +12,7 @@ setup(
     name="tinycdb",
     version="0.1",
     description="A Python wrapper for TinyCDB",
+    long_description = open('README.rst').read(),
     author='Jeethu Rao',
     author_email='jeethu@jeethurao.com',
 
