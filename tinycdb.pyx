@@ -3,8 +3,7 @@ A very simple interface to the tinycdb DBM.
 
 By Jeethu Rao <jeethu@jeethurao.com>
 '''
-cimport python_string as PS
-cimport python_mem as PM
+from cpython cimport PyString_AsStringAndSize, PyString_FromStringAndSize, PyMem_Free, PyMem_Malloc
 
 cdef extern from "fcntl.h" :
     int open( char* path, int flag, int mode )
@@ -30,7 +29,7 @@ cdef int openFile( object file_name, int rw ) except -1 :
     cdef char *buffer
     cdef Py_ssize_t len
     cdef int rez
-    rez = PS.PyString_AsStringAndSize(file_name, &buffer, &len)
+    rez = PyString_AsStringAndSize(file_name, &buffer, &len)
     if rw :
         rez = open( buffer, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR )
     else :
@@ -52,7 +51,7 @@ cdef class tinycdb:
         cdef Py_ssize_t len
         cdef int rez
         cdef unsigned int dlen
-        rez = PS.PyString_AsStringAndSize(key, &buffer, &len)
+        rez = PyString_AsStringAndSize(key, &buffer, &len)
         if self.mode == c'w':
             rez = cdb_make_exists(&self.cdbm, buffer, len)
         else:
@@ -87,12 +86,12 @@ cdef class create(tinycdb):
         cdef char *buffer1, *buffer2
         cdef Py_ssize_t len1, len2
         cdef int rez
-        rez = PS.PyString_AsStringAndSize(key, &buffer1, &len1)
-        rez = PS.PyString_AsStringAndSize(value, &buffer2, &len2)
+        rez = PyString_AsStringAndSize(key, &buffer1, &len1)
+        rez = PyString_AsStringAndSize(value, &buffer2, &len2)
         rez = cdb_make_add( &self.cdbm, buffer1, len1, buffer2, len2 )
         if rez != 0 :
             raise CDBError("Unknown Error")
-    
+
     def close( self ) :
         if not self.finished :
             self.finished = 1
@@ -117,19 +116,19 @@ cdef class read(tinycdb):
         cdef int rez
         cdef unsigned int dlen
         cdef object ret
-        rez = PS.PyString_AsStringAndSize(key, &buffer, &len)
+        rez = PyString_AsStringAndSize(key, &buffer, &len)
         rez = cdb_seek( self.fd, buffer, len, &dlen )
         if rez < 0 :
             raise CDBError("Unknown Error")
         if rez == 0 :
             raise KeyError("Key \'%s\' not found"%key)
-        buffer = <char *>PM.PyMem_Malloc(dlen)
+        buffer = <char *>PyMem_Malloc(dlen)
         if buffer == NULL :
             raise MemoryError("malloc() failed")
         rez = cdb_bread( self.fd, buffer, dlen )
         if rez == 0 :
-            ret = PS.PyString_FromStringAndSize( buffer, dlen )
-            PM.PyMem_Free(buffer)
+            ret = PyString_FromStringAndSize( buffer, dlen )
+            PyMem_Free(buffer)
             return ret
         raise CDBError("Unknown Error")
         PM.PyMem_Free(buffer)
