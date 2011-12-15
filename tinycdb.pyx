@@ -130,8 +130,8 @@ cdef class read(tinycdb):
             ret = PyString_FromStringAndSize( buffer, dlen )
             PyMem_Free(buffer)
             return ret
+        PyMem_Free(buffer)
         raise CDBError("Unknown Error")
-        PM.PyMem_Free(buffer)
 
     def __dealloc__( self ) :
         self.close()
